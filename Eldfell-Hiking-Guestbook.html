@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🏞 Eldfell Hiking Guestbook</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    .fullscreen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0, 0, 0, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    .fullscreen img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 12px;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-r from-green-50 to-blue-50 text-gray-900 min-h-screen">
+  <div class="max-w-2xl mx-auto p-6 space-y-8">
+    <div class="flex justify-between items-center">
+      <h1 class="text-3xl font-extrabold text-green-700" id="title">🏞 Eldfell Hiking Guestbook</h1>
+      <select id="lang-select" onchange="translateLanguage()" class="p-2 rounded border border-gray-300 bg-white shadow">
+        <option value="en">English</option>
+        <option value="is">Íslenska</option>
+      </select>
+    </div>
+
+    <div class="flex justify-between items-center text-sm text-gray-700">
+      <p id="entry-count">Total Entries: 0</p>
+      <p id="today-count">Today's Hikers: 0</p>
+    </div>
+
+    <div class="flex justify-between items-center">
+      <input type="date" id="date-text-filter" oninput="filterByDateText()" class="p-2 rounded border border-gray-300 bg-white" />
+      <input id="search-input" placeholder="Search by name..." oninput="handleSearch()"
+        class="p-2 rounded border border-gray-300 bg-white placeholder-gray-400 shadow ml-2" />
+    </div>
+
+    <div class="bg-white rounded-lg shadow-lg p-6 space-y-4">
+      <p id="location-label" class="text-lg font-semibold text-green-700">📍 Location: Eldfell</p>
+      <input id="name-input" placeholder="Your full name" required class="w-full p-3 rounded border border-gray-300 shadow" />
+      <textarea id="note-input" placeholder="Write a note about your hike..." class="w-full p-3 rounded border border-gray-300 shadow"></textarea>
+      <label id="photo-label" class="block text-sm font-medium">Add a photo</label>
+      <input id="photo-input" type="file" accept="image/*" class="w-full p-2 rounded border border-gray-300 shadow" />
+      <button id="add-button" onclick="handleAddEntry()" class="w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-white font-semibold shadow">Add Entry</button>
+    </div>
+
+    <div id="entries" class="space-y-4"></div>
+
+    <footer class="mt-10 border-t border-gray-300 pt-6 text-center text-sm text-gray-600">
+      <p>
+        Visit our store at
+        <a href="https://3dframleidsla.store" class="text-green-600 hover:underline" target="_blank">
+          3dframleidsla.store
+        </a>
+      </p>
+      <p>Contact us: <a href="mailto:3dframleidsla@gmail.com" class="text-green-600 hover:underline">3dframleidsla@gmail.com</a></p>
+    </footer>
+  </div>
+
+  <script>
+    let entries = [];
+    const MAX_ENTRIES = 50;
+
+    function compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.onload = function () {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const MAX_WIDTH = 300;
+          const scaleSize = MAX_WIDTH / img.width;
+          canvas.width = MAX_WIDTH;
+          canvas.height = img.height * scaleSize;
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          callback(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleAddEntry() {
+      const name = document.getElementById('name-input').value.trim();
+      const note = document.getElementById('note-input').value.trim();
+      const photoInput = document.getElementById('photo-input');
+      const file = photoInput.files[0];
+
+      if (!name) {
+        alert(currentLang === 'is' ? 'Nafn er nauðsynlegt.' : 'Name is required.');
+        return;
+      }
+
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      const saveEntry = (photo) => {
+        const newEntry = {
+          id: Date.now(),
+          name,
+          note,
+          date: dateStr,
+          time: timeStr,
+          photo
+        };
+        entries.unshift(newEntry);
+        if (entries.length > MAX_ENTRIES) entries.pop();
+        localStorage.setItem("guestbook-entries", JSON.stringify(entries));
+        displayEntries(entries);
+        document.getElementById('entry-count').innerText = `${currentLang === 'is' ? 'Fjöldi færslna:' : 'Total Entries:'} ${entries.length}`;
+        updateTodayCount();
+        document.getElementById('name-input').value = '';
+        document.getElementById('note-input').value = '';
+        photoInput.value = '';
+      };
+
+      if (file) compressImage(file, saveEntry);
+      else saveEntry(null);
+    }
+
+    function displayEntries(list) {
+      const section = document.getElementById('entries');
+      section.innerHTML = '';
+      list.forEach(entry => {
+        let imgHTML = entry.photo ? `<img src="${entry.photo}" class="mt-2 w-24 h-24 object-cover rounded cursor-pointer" onclick="showFullscreen('${entry.photo}')">` : '';
+        section.innerHTML += `
+          <div class="bg-white rounded-lg shadow p-4 hover:shadow-md transition">
+            <p class="text-sm text-gray-600">${entry.date} - ${entry.time}</p>
+            <p class="font-bold">👤 ${entry.name}</p>
+            <p class="mt-1">${entry.note}</p>
+            ${imgHTML}
+          </div>
+        `;
+      });
+    }
+
+    function handleSearch() {
+      const val = document.getElementById('search-input').value.toLowerCase();
+      displayEntries(entries.filter(e => e.name.toLowerCase().includes(val)));
+    }
+
+    function filterByDateText() {
+      const val = document.getElementById('date-text-filter').value;
+      displayEntries(entries.filter(e => e.date === val));
+    }
+
+    function showFullscreen(url) {
+      const overlay = document.createElement('div');
+      overlay.className = 'fullscreen';
+      overlay.innerHTML = `<img src="${url}" onclick="document.body.removeChild(this.parentElement)">`;
+      document.body.appendChild(overlay);
+    }
+
+    let currentLang = 'en';
+
+    function translateLanguage() {
+      currentLang = document.getElementById("lang-select").value;
+      const lang = currentLang;
+      document.getElementById("title").textContent = lang === "is" ? "🏞 Gestabók Eldfells" : "🏞 Eldfell Hiking Guestbook";
+      document.getElementById("location-label").textContent = lang === "is" ? "📍 Staðsetning: Eldfell" : "📍 Location: Eldfell";
+      document.getElementById("photo-label").textContent = lang === "is" ? "Bæta við mynd" : "Add a photo";
+      document.getElementById("add-button").textContent = lang === "is" ? "Bæta við færslu" : "Add Entry";
+      document.getElementById("entry-count").textContent = lang === "is" ? `Fjöldi færslna: ${entries.length}` : `Total Entries: ${entries.length}`;
+      document.getElementById("today-count").textContent = lang === "is" ? `Göngumenn í dag: ${getTodayCount()}` : `Today's Hikers: ${getTodayCount()}`;
+      document.getElementById("search-input").placeholder = lang === "is" ? "Leita eftir nafni..." : "Search by name...";
+      document.getElementById("name-input").placeholder = lang === "is" ? "Fullt nafn þitt" : "Your full name";
+      document.getElementById("note-input").placeholder = lang === "is" ? "Skrifaðu athugasemd um gönguna..." : "Write a note about your hike...";
+    }
+
+    function getTodayCount() {
+      const today = new Date().toISOString().split('T')[0];
+      return entries.filter(e => e.date === today).length;
+    }
+
+    function updateTodayCount() {
+      document.getElementById('today-count').textContent = currentLang === 'is' ? `Göngumenn í dag: ${getTodayCount()}` : `Today's Hikers: ${getTodayCount()}`;
+    }
+
+    window.onload = function () {
+      const stored = localStorage.getItem("guestbook-entries");
+      if (stored) entries = JSON.parse(stored);
+      displayEntries(entries);
+      document.getElementById('entry-count').innerText = `Total Entries: ${entries.length}`;
+      updateTodayCount();
+    }
+  </script>
+</body>
+</html>
